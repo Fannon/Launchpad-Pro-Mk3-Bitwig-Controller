@@ -8,6 +8,7 @@ host.setShouldFailOnDeprecatedUse(true);
 // Load all script files
 host.load("util/color.js");
 host.load("model/config.js");
+host.load("model/LpLayers.js");
 host.load("model/LpControls.js");
 host.load("model/LpNoteGrid.js");
 
@@ -26,9 +27,11 @@ const ext: {
   transport: API.Transport;
   tracks: API.TrackBank;
   // Launchpad Controller
+  layers: LpLayers;
   controls: LpControls;
   grid: LpNoteGrid;
 } = {
+  layers: new LpLayers(),
   controls: new LpControls(),
   grid: new LpNoteGrid(),
 };
@@ -73,7 +76,7 @@ function init() {
   ext.midiIn.setSysexCallback(onDawSysex);
 
   // ENTER DAW MODE
-  dawMode();
+  ext.layers.setDawMode();
 
   // INITIALIZE NOTE GRID
   // colorGrid(ext.grid, 0);
@@ -189,21 +192,17 @@ function init() {
       });
     }
   }
-
-  //   const sceneBank = tracks.sceneBank();
-  //   sceneBank.launch(0);
-  //   sceneBank.setIndication(true);
-  //   const scene = sceneBank.getScene(1);
 }
 
 function flush() {
   host.println("flush()");
-  ext.grid.draw();
+  if (ext.layers.layout === LpLayout.Session) {
+    ext.grid.draw();
+  }
 }
 
 function exit() {
-  println("-> Exit to Standalone mode");
-  ext.midiOut.sendSysex(`${sysexPrefix} 10 00 F7`);
+  ext.layers.setStandaloneMode();
 }
 
 //////////////////////////////////////////
@@ -276,12 +275,13 @@ function onDawMidi(status: number, data1: number, data2: number) {
 
 function onDawSysex(data: string) {
   host.println("DAW Sysex IN: " + data);
-}
 
-function dawMode() {
-  println("-> Enter DAW Mode");
-  ext.midiOut.sendSysex(`${sysexPrefix} 10 01 F7`);
-  ext.midiOut.sendSysex(`${sysexPrefix} 00 00 00 00 F7`);
+  // Catch layout and page changes
+  if (data.startsWith("f0002029020e00")) {
+    data = data.replace("f0002029020e00", "");
+    ext.layers.layout = parseInt(`${data[0]}${data[1]}`, 16);
+    ext.layers.page = parseInt(`${data[2]}${data[3]}`, 16);
+  }
 }
 
 //////////////////////////////////////////

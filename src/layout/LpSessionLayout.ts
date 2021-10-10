@@ -5,6 +5,10 @@ class LpSessionLayout {
   private numTracks = 8;
   private numScenes = 8;
 
+  public state: any = {
+    tracks: [],
+  };
+
   /**
    * Initializes the Session Layout
    * Creates track bank and necessary observers for tracks, slot banks and slots
@@ -29,6 +33,9 @@ class LpSessionLayout {
 
       // Track Colors
       track.color().addValueObserver((r, g, b) => {
+        this.state.tracks[trackNumber] = {
+          color: [r, g, b],
+        };
         const colorNote = LpColors.bitwigRgbToNote(r, g, b);
         println(` T-[${trackNumber}]: Color: ${colorNote}`);
         const button = ext.controls.getButton("track" + trackNumber);
@@ -96,6 +103,8 @@ class LpSessionLayout {
           );
           if (isPlaybackQueued) {
             ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).pulse();
+          } else {
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).solid();
           }
         });
         clip.isStopQueued().addValueObserver((isStopQueued) => {
@@ -104,6 +113,8 @@ class LpSessionLayout {
           );
           if (isStopQueued) {
             ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).pulse();
+          } else {
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).solid();
           }
         });
 

@@ -6,7 +6,7 @@ loadAPI(14);
 host.setShouldFailOnDeprecatedUse(true);
 
 // Load all script files
-host.load("config.js");
+host.load("model/config.js");
 host.load("model/LpLayers.js");
 host.load("model/LpControls.js");
 host.load("model/LpNoteGrid.js");
@@ -48,10 +48,10 @@ const ext: {
 
 host.defineController(
   "Novation",
-  "Launchpad Pro Mk3 (TS)",
-  "0.1",
+  "Launchpad Pro Mk3",
+  "0.4",
   "63ea9a43-4fc1-4ee9-9606-5e310b8de2a9",
-  "Fannon (TS)"
+  "Fannon"
 );
 
 host.defineMidiPorts(1, 1);
@@ -94,6 +94,8 @@ function init() {
 
   // INITIALIZE SESSSION LAYOUT
   ext.sessionLayout.init();
+
+  host.getProject().subscribe();
 
   println("--- [INIT END] ----------------------------------------");
 }
@@ -148,6 +150,12 @@ function onDawMidi(status: number, data1: number, data2: number) {
           host.scheduleTask(() => {
             ext.controls.buttons.tempo.color(51).draw();
           }, 200);
+          break;
+
+        // CLEAR
+        // TODO: Stop all clips? Or reset Launchpad?
+        case ext.controls.buttons.clear.note:
+          host.restart();
           break;
 
         // TRACK SELECTION

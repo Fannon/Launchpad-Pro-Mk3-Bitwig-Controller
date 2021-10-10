@@ -89,6 +89,7 @@ class LpControls {
     play: new LpControlButton(20, undefined, "pulse"),
     record: new LpControlButton(10, 5, "pulse"),
     tempo: new LpControlButton(40, 51).on(),
+    clear: new LpControlButton(60, 1).on(),
 
     // TRACKS
     track0: new LpControlButton(101),

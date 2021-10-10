@@ -1,8 +1,8 @@
 {
   "name": "launchpad-pro-mk3-bitwig-controller",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "description": "Novation Launchpad Pro Mk3 controller script for Bitwig Studio",
-  "main": "dist/JsPlayground.control.js",
+  "main": "dist/Launchpad-Pro-Mk3.control.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npm run compile",

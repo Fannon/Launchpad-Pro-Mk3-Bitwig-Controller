@@ -114,7 +114,7 @@ function exit() {
 //////////////////////////////////////////
 
 function onDawMidi(status: number, data1: number, data2: number) {
-  println(`DAW MIDI IN: ${status}: ${data1}, ${data2}`);
+  println(`---> DAW MIDI IN: ${status}: ${data1}, ${data2}`);
 
   // Only register "keydown" above a certain threshold
   if (data2 > config.triggerThreshold) {
@@ -215,13 +215,13 @@ function onDawMidi(status: number, data1: number, data2: number) {
       ext.sessionLayout.launchClip(pos.x, pos.y);
 
       const pos2 = LpNoteGrid.noteToPosition(data1);
-      ext.grid.cells[pos2.x][pos2.y].highlight();
+      ext.grid.cells[pos2.x][pos2.y].flashOnce();
     }
   }
 }
 
 function onDawSysex(data: string) {
-  host.println("DAW Sysex IN: " + data);
+  host.println("---> DAW Sysex IN: " + data);
 
   // Catch layout and page changes
   if (data.startsWith("f0002029020e00")) {

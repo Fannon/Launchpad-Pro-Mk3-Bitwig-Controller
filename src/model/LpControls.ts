@@ -3,38 +3,46 @@
  */
 class LpControlButton {
   public note: Note;
-  public previousColor: Color = 0;
-  public currentColor: Color = 0;
-  public defaultColor: Color;
+  public currentColor: Color;
+  public previousColor: Color;
+  public highlightColor: Color;
   public mode: DisplayMode = "solid";
+  public enabled: boolean;
 
   constructor(
     note: Note,
-    defaultColor = config.defaultButtonColor,
+    color = config.defaultButtonColor,
     mode: DisplayMode = "solid"
   ) {
     this.note = note;
-    this.defaultColor = defaultColor;
+    this.currentColor = color;
+    this.previousColor = color;
     this.mode = mode;
+    this.enabled = !!color;
+    this.highlightColor = config.highlightColor;
   }
 
   public isOn(): boolean {
-    return this.currentColor !== 0;
+    return this.enabled;
   }
 
-  public on(
-    color: Color = this.defaultColor || config.defaultButtonColor
-  ): LpControlButton {
-    this.currentColor = color;
+  public on(): LpControlButton {
+    this.enabled = true;
     return this;
   }
+
   public off(): LpControlButton {
-    this.previousColor = this.currentColor;
-    this.currentColor = 0;
+    this.enabled = false;
     return this;
   }
 
+  /**
+   * Set color and enable (on()) the cell
+   */
   public color(color: Color): LpControlButton {
+    if (color) {
+      this.enabled = true;
+    }
     this.previousColor = this.currentColor;
     this.currentColor = color;
     return this;
@@ -53,36 +61,23 @@ class LpControlButton {
     return this;
   }
 
-  public reset(): LpControlButton {
-    this.mode = "solid";
-    this.currentColor = this.defaultColor;
-    return this;
-  }
-
   public draw(): LpControlButton {
     println(
       `Draw Control Button: ${this.note}: color=${this.currentColor}, mode=${this.mode}`
     );
-    if (this.mode === "flash") {
-      ext.midiOut.sendMidi(177, this.note, this.currentColor || 0);
+    if (this.enabled === false) {
+      ext.midiOut.sendMidi(176, this.note, 0);
+    } else if (this.mode === "solid") {
+      ext.midiOut.sendMidi(176, this.note, this.currentColor);
+    } else if (this.mode === "flash") {
+      ext.midiOut.sendMidi(177, this.note, this.currentColor);
     } else if (this.mode === "pulse") {
-      ext.midiOut.sendMidi(178, this.note, this.currentColor || 0);
-    } else {
-      ext.midiOut.sendMidi(176, this.note, this.currentColor || 0); // Solid
+      ext.midiOut.sendMidi(178, this.note, this.currentColor);
+    } else if (this.mode === "highlight") {
+      ext.midiOut.sendMidi(176, this.note, this.highlightColor);
     }
     return this;
   }
-
-  // public drawWithHighlight(
-  //   highlightColor: Color = LpControlButton.defaults.highlightColor
-  // ): LpControlButton {
-  //   this.previousColor = this.currentColor;
-  //   this.color(highlightColor).draw();
-  //   host.scheduleTask(() => {
-  //     this.color(this.previousColor).draw();
-  //   }, config.triggerHighlightMs);
-  //   return this;
-  // }
 }
 
 /**

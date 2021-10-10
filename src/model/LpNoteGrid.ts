@@ -1,6 +1,6 @@
 type Note = number;
 type Color = number;
-type DisplayMode = "solid" | "pulse" | "flash";
+type DisplayMode = "solid" | "pulse" | "flash" | "highlight";
 type GridData = LpGridCell[][];
 
 interface Position {
@@ -18,9 +18,10 @@ class LpGridCell implements Position, CellData {
   public y: number;
   public note: Note;
   public currentColor: Color;
+  public previousColor: Color;
+  public highlightColor: Color;
   public mode: DisplayMode;
   public enabled: boolean;
-  private previousColor: Color;
 
   public constructor(
     x: number,
@@ -36,6 +37,7 @@ class LpGridCell implements Position, CellData {
     this.previousColor = color;
     this.mode = mode;
     this.enabled = !!color;
+    this.highlightColor = config.highlightColor;
   }
 
   public isOn(): boolean {
@@ -76,12 +78,19 @@ class LpGridCell implements Position, CellData {
     this.mode = "flash";
     return this;
   }
+  public highlight(highlightColor: Color = config.highlightColor): LpGridCell {
+    this.highlightColor = highlightColor;
+    this.mode = "highlight";
+    return this;
+  }
 
   /**
    * Highlight the note with a highlight color for a short amount of time
    * Then return to the current color / state
+   *
+   * TODO: Seems buggy
    */
-  public highlight(highlightColor: Color = config.highlightColor): LpGridCell {
+  public flashOnce(highlightColor: Color = config.highlightColor): LpGridCell {
     this.previousColor = this.currentColor;
     this.color(highlightColor).draw();
     host.scheduleTask(() => {
@@ -99,6 +108,8 @@ class LpGridCell implements Position, CellData {
       ext.midiOut.sendMidi(145, this.note, this.currentColor);
     } else if (this.mode === "pulse") {
       ext.midiOut.sendMidi(146, this.note, this.currentColor);
+    } else if (this.mode === "highlight") {
+      ext.midiOut.sendMidi(144, this.note, this.highlightColor);
     }
     return this;
   }

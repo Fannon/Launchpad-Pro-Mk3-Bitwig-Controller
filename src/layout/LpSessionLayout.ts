@@ -34,12 +34,11 @@ class LpSessionLayout {
         const button = ext.controls.getButton("track" + trackNumber);
         button.color(colorNote).draw();
         const altButton = ext.controls.getButton("track" + trackNumber + "Alt");
-
+        altButton.color(colorNote);
         if (track.mute().get()) {
-          altButton.color(1).pulse().draw();
-        } else {
-          altButton.color(colorNote).draw();
+          altButton.off();
         }
+        altButton.draw();
       });
 
       // Track Arm Status
@@ -57,9 +56,9 @@ class LpSessionLayout {
         println(` T-[${trackNumber}]: isMuted: ${isMuted}`);
         const altButton = ext.controls.getButton("track" + trackNumber + "Alt");
         if (isMuted) {
-          altButton.color(1).pulse().draw();
+          altButton.off().draw();
         } else {
-          altButton.solid().draw();
+          altButton.on().draw();
         }
       });
 
@@ -67,6 +66,8 @@ class LpSessionLayout {
       for (let sceneNumber = 0; sceneNumber < this.numScenes; sceneNumber++) {
         const clip = slotBank.getItemAt(sceneNumber);
         clip.isPlaying().markInterested();
+        clip.isPlaybackQueued().markInterested();
+        clip.isStopQueued().markInterested();
 
         clip.hasContent().addValueObserver((hasContent) => {
           println(
@@ -89,12 +90,31 @@ class LpSessionLayout {
             .color(colorNote);
         });
 
+        clip.isPlaybackQueued().addValueObserver((isPlaybackQueued) => {
+          println(
+            ` C-[${trackNumber}, ${sceneNumber}]: isPlaybackQueued: ${isPlaybackQueued}`
+          );
+          if (isPlaybackQueued) {
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).pulse();
+          }
+        });
+        clip.isStopQueued().addValueObserver((isStopQueued) => {
+          println(
+            ` C-[${trackNumber}, ${sceneNumber}]: isStopQueued: ${isStopQueued}`
+          );
+          if (isStopQueued) {
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).pulse();
+          }
+        });
+
         clip.isPlaying().addValueObserver((isPlaying) => {
           println(
             ` C-[${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`
           );
           if (isPlaying) {
-            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).pulse();
+            ext.grid
+              .getCellBySessionCoords(trackNumber, sceneNumber)
+              .highlight();
           } else {
             ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).solid();
           }
@@ -117,20 +137,21 @@ class LpSessionLayout {
       scene.addIsSelectedInEditorObserver((isSelected) => {
         const button = ext.controls.getButton("scene" + sceneNumber);
         if (isSelected) {
-          button.pulse().on();
+          button.color(config.defaultButtonColor).pulse();
         } else {
-          button.solid().off();
+          button.off();
         }
         button.draw();
       });
 
       // Scene Color
-      scene.color().addValueObserver((r, g, b) => {
-        const button = ext.controls.getButton("scene" + sceneNumber);
-        const colorNote = LpColors.bitwigRgbToNote(r, g, b);
-        println(` S-[${sceneNumber}]: Color: ${colorNote}`);
-        button.color(colorNote).draw();
-      });
+      // TODO: Does not work
+      // scene.color().addValueObserver((r, g, b) => {
+      //   const button = ext.controls.getButton("scene" + sceneNumber);
+      //   const colorNote = LpColors.bitwigRgbToNote(r, g, b);
+      //   println(` S-[${sceneNumber}]: Color: ${colorNote}`);
+      //   button.color(colorNote).draw();
+      // });
     }
   }
 

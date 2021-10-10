@@ -8,8 +8,8 @@ host.setShouldFailOnDeprecatedUse(true);
 // Load all script files
 host.load("util/color.js");
 host.load("model/config.js");
-host.load("model/grid.js");
-host.load("model/controls.js");
+host.load("model/LpControls.js");
+host.load("model/LpNoteGrid.js");
 
 println(JSON.stringify(colorMap, null, 2));
 
@@ -20,14 +20,17 @@ println(JSON.stringify(colorMap, null, 2));
 const sysexPrefix = "F0 00 20 29 02 0E";
 // @ts-expect-error
 const ext: {
+  // Bitwig API
   midiIn: API.MidiIn;
   midiOut: API.MidiOut;
-  grid: Grid;
   transport: API.Transport;
   tracks: API.TrackBank;
-  shift: boolean;
+  // Launchpad Controller
+  controls: LpControls;
+  grid: LpNoteGrid;
 } = {
-  shift: false,
+  controls: new LpControls(),
+  grid: new LpNoteGrid(),
 };
 
 //////////////////////////////////////////
@@ -73,10 +76,9 @@ function init() {
   dawMode();
 
   // INITIALIZE NOTE GRID
-  ext.grid = createGrid();
   // colorGrid(ext.grid, 0);
   // colorGrid(ext.grid, 64);
-  drawGrid(ext.grid);
+  ext.grid.draw();
 
   // INITIALIZE BITWIG TRANSPORT
   ext.transport = host.createTransport();
@@ -84,20 +86,20 @@ function init() {
   ext.transport.isPlaying().addValueObserver((isPlaying) => {
     println(` >>>: isPlaying: ${isPlaying}`);
     if (isPlaying) {
-      controlButtons.play.color = controlButtons.play.defaultColor;
+      ext.controls.buttons.play.on();
     } else {
-      controlButtons.play.color = 0;
+      ext.controls.buttons.play.off();
     }
-    drawControlButton(controlButtons.play);
+    ext.controls.buttons.play.draw();
   });
   ext.transport.isArrangerRecordEnabled().addValueObserver((isRecording) => {
     println(` >>>: isRecording: ${isRecording}`);
     if (isRecording) {
-      controlButtons.record.color = controlButtons.record.defaultColor;
+      ext.controls.buttons.record.on();
     } else {
-      controlButtons.record.color = 0;
+      ext.controls.buttons.record.off();
     }
-    drawControlButton(controlButtons.record);
+    ext.controls.buttons.record.draw();
   });
 
   // INITIALIZE BITWIG TRACKS & SCENES
@@ -123,21 +125,21 @@ function init() {
     track.color().addValueObserver((r, g, b) => {
       const colorNote = bitwigRgbToNote(r, g, b);
       println(` T-[${trackNumber}]: Color: ${colorNote}`);
-      const button = controlButtons["track" + trackNumber];
+      const button = ext.controls.getButton("track" + trackNumber);
       button.color = colorNote;
-      drawControlButton(button);
+      button.draw();
     });
 
     // Track Arm Status
     track.arm().addValueObserver((isArmed) => {
       println(` T-[${trackNumber}]: isArmed: ${isArmed}`);
-      const button = controlButtons["track" + trackNumber];
+      const button = ext.controls.getButton("track" + trackNumber);
       if (isArmed) {
         button.mode = "pulse";
       } else {
         button.mode = "solid";
       }
-      drawControlButton(button);
+      button.draw();
     });
 
     let slotBank = track.clipLauncherSlotBank();
@@ -148,34 +150,42 @@ function init() {
       clip.hasContent().addValueObserver((hasContent) => {
         println(` C-[${trackNumber}, ${sceneNumber}]: Content: ${hasContent}`);
         if (hasContent) {
-          ext.grid[trackNumber][7 - sceneNumber].color = 32;
+          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
+            color: 32,
+          });
         } else {
-          ext.grid[trackNumber][7 - sceneNumber].color = 0;
+          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
+            color: 0,
+          });
         }
       });
 
       clip.color().addValueObserver((r, g, b) => {
         const colorNote = bitwigRgbToNote(r, g, b);
         println(` C-[${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
-        ext.grid[trackNumber][7 - sceneNumber].color = colorNote;
+        ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
+          color: colorNote,
+        });
       });
 
       clip.isPlaying().addValueObserver((isPlaying) => {
         println(` C-[${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`);
         if (isPlaying) {
-          ext.grid[trackNumber][7 - sceneNumber].mode = "pulse";
+          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
+            mode: "pulse",
+          });
         } else {
-          ext.grid[trackNumber][7 - sceneNumber].mode = "solid";
+          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
+            mode: "solid",
+          });
         }
       });
 
+      // TODO: Not sure how to make this useful
       clip.isSelected().addValueObserver((isSelected) => {
         println(
           ` C-[${trackNumber}, ${sceneNumber}]: isSelected: ${isSelected}`
         );
-        if (isSelected) {
-          ext.grid[trackNumber][7 - sceneNumber].mode = "flash";
-        }
       });
     }
   }
@@ -188,7 +198,7 @@ function init() {
 
 function flush() {
   host.println("flush()");
-  drawGrid(ext.grid);
+  ext.grid.draw();
 }
 
 function exit() {
@@ -211,7 +221,7 @@ function onDawMidi(status: number, data1: number, data2: number) {
 
       switch (data1) {
         // PLAY
-        case controlButtons.play.note:
+        case ext.controls.buttons.play.note:
           if (ext.transport.isPlaying().getAsBoolean()) {
             ext.transport.stop();
           } else {
@@ -220,24 +230,23 @@ function onDawMidi(status: number, data1: number, data2: number) {
           break;
 
         // RECORD
-        case controlButtons.record.note:
-          const state = toggleControlButton(controlButtons.record);
-          if (state) {
-            ext.transport.record();
-          } else {
+        case ext.controls.buttons.record.note:
+          if (ext.transport.isArrangerRecordEnabled().getAsBoolean()) {
             ext.transport.stop();
+          } else {
+            ext.transport.record();
           }
           break;
 
         // TRACK SELECTION
-        case controlButtons.track0.note:
-        case controlButtons.track1.note:
-        case controlButtons.track2.note:
-        case controlButtons.track3.note:
-        case controlButtons.track4.note:
-        case controlButtons.track5.note:
-        case controlButtons.track6.note:
-        case controlButtons.track7.note:
+        case ext.controls.buttons.track0.note:
+        case ext.controls.buttons.track1.note:
+        case ext.controls.buttons.track2.note:
+        case ext.controls.buttons.track3.note:
+        case ext.controls.buttons.track4.note:
+        case ext.controls.buttons.track5.note:
+        case ext.controls.buttons.track6.note:
+        case ext.controls.buttons.track7.note:
           const trackSelected = data1 - 101;
           println(` T-[${trackSelected}]: Select and arm`);
           for (let trackNumber = 0; trackNumber < 8; trackNumber++) {
@@ -259,7 +268,7 @@ function onDawMidi(status: number, data1: number, data2: number) {
 
     // Handle grid note buttons
     if (status === 144) {
-      const pos = noteToPosition(data1);
+      const pos = LpNoteGrid.noteToPosition(data1);
       toggleClip(pos.x, 7 - pos.y);
     }
   }

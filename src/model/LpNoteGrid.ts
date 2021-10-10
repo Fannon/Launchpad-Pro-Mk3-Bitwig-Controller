@@ -9,7 +9,7 @@ interface Position {
 }
 interface CellData {
   note: Note;
-  color: Color;
+  currentColor: Color;
   mode: DisplayMode;
 }
 
@@ -17,8 +17,9 @@ class LpGridCell implements Position, CellData {
   public x: number;
   public y: number;
   public note: Note;
-  public color: Color;
+  public currentColor: Color;
   public mode: DisplayMode;
+  private previousColor: Color;
 
   public constructor(
     x: number,
@@ -30,18 +31,62 @@ class LpGridCell implements Position, CellData {
     this.x = x;
     this.y = y;
     this.note = note;
-    this.color = color;
+    this.currentColor = color;
+    this.previousColor = color;
     this.mode = mode;
   }
 
-  public draw() {
+  public isOn(): boolean {
+    return this.currentColor !== 0;
+  }
+
+  public off(): LpGridCell {
+    this.previousColor = this.currentColor;
+    this.currentColor = 0;
+    return this;
+  }
+
+  public color(color: Color): LpGridCell {
+    this.previousColor = this.currentColor;
+    this.currentColor = color;
+    return this;
+  }
+
+  public solid(): LpGridCell {
+    this.mode = "solid";
+    return this;
+  }
+  public pulse(): LpGridCell {
+    this.mode = "pulse";
+    return this;
+  }
+  public flash(): LpGridCell {
+    this.mode = "flash";
+    return this;
+  }
+
+  /**
+   * Highlight the note with a highlight color for a short amount of time
+   * Then return to the current color / state
+   */
+  public highlight(highlightColor: Color = config.highlightColor): LpGridCell {
+    this.previousColor = this.currentColor;
+    this.color(highlightColor).draw();
+    host.scheduleTask(() => {
+      this.color(this.previousColor).draw();
+    }, config.triggerHighlightMs);
+    return this;
+  }
+
+  public draw(): LpGridCell {
     if (this.mode === "flash") {
-      ext.midiOut.sendMidi(145, this.note, this.color);
+      ext.midiOut.sendMidi(145, this.note, this.currentColor);
     } else if (this.mode === "pulse") {
-      ext.midiOut.sendMidi(146, this.note, this.color);
+      ext.midiOut.sendMidi(146, this.note, this.currentColor);
     } else {
-      ext.midiOut.sendMidi(144, this.note, this.color); // Solid
+      ext.midiOut.sendMidi(144, this.note, this.currentColor); // Solid
     }
+    return this;
   }
 }
 
@@ -70,25 +115,16 @@ class LpNoteGrid {
     return gridData;
   }
 
-  public updateCell(x: number, y: number, cell: Partial<CellData>): LpGridCell {
-    for (const propertyName in cell) {
-      // @ts-ignore
-      this.cells[x][y][propertyName] = cell[propertyName];
-    }
+  public getCell(x: number, y: number): LpGridCell {
     return this.cells[x][y];
   }
 
-  public updateCellBySessionCoords(
+  public getCellBySessionCoords(
     trackNumber: number,
-    sceneNumber: number,
-    cell: Partial<CellData>
+    sceneNumber: number
   ): LpGridCell {
     const x = trackNumber;
     const y = 7 - sceneNumber;
-    for (const propertyName in cell) {
-      // @ts-ignore
-      this.cells[x][y][propertyName] = cell[propertyName];
-    }
     return this.cells[x][y];
   }
 
@@ -110,8 +146,7 @@ class LpNoteGrid {
   public reset(): void {
     for (const row of this.cells) {
       for (const cell of row) {
-        cell.mode = "solid";
-        cell.color = 0;
+        cell.solid().off();
       }
     }
   }
@@ -123,7 +158,7 @@ class LpNoteGrid {
     let color = startPoint;
     for (const row of this.cells) {
       for (const cell of row) {
-        cell.color = color;
+        cell.color(color);
         color++;
       }
     }

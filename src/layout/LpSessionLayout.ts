@@ -12,11 +12,12 @@ class LpSessionLayout {
   public init() {
     // INITIALIZE BITWIG TRACKS & SCENES
     ext.tracks = host.createMainTrackBank(this.numTracks, 0, this.numScenes);
-    ext.tracks.sceneBank().setIndication(true);
+    ext.sceneBank = ext.tracks.sceneBank();
 
-    // ext.tracks.scrollPosition().markInterested();
-    // println("Scroll Position: " + ext.tracks.scrollPosition().get());
+    // Indiate current track bank selection
+    ext.sceneBank.setIndication(true);
 
+    // For each track: Subscribe / mark interested information
     for (let trackNumber = 0; trackNumber < this.numTracks; trackNumber++) {
       const track = ext.tracks.getItemAt(trackNumber);
 
@@ -25,15 +26,14 @@ class LpSessionLayout {
       track.color().markInterested();
       track.arm().markInterested();
 
-      println(`Track [${trackNumber}] Color  : ${track.color().get()}`);
-
       // Track Colors
       track.color().addValueObserver((r, g, b) => {
         const colorNote = LpColors.bitwigRgbToNote(r, g, b);
         println(` T-[${trackNumber}]: Color: ${colorNote}`);
         const button = ext.controls.getButton("track" + trackNumber);
-        button.color = colorNote;
-        button.draw();
+        button.color(colorNote).draw();
+        const altButton = ext.controls.getButton("track" + trackNumber + "Alt");
+        altButton.color(colorNote).draw();
       });
 
       // Track Arm Status
@@ -58,22 +58,20 @@ class LpSessionLayout {
             ` C-[${trackNumber}, ${sceneNumber}]: Content: ${hasContent}`
           );
           if (hasContent) {
-            ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-              color: 32,
-            });
+            ext.grid
+              .getCellBySessionCoords(trackNumber, sceneNumber)
+              .color(config.defaultButtonColor);
           } else {
-            ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-              color: 0,
-            });
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).off();
           }
         });
 
         clip.color().addValueObserver((r, g, b) => {
           const colorNote = LpColors.bitwigRgbToNote(r, g, b);
           println(` C-[${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
-          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-            color: colorNote,
-          });
+          ext.grid
+            .getCellBySessionCoords(trackNumber, sceneNumber)
+            .color(colorNote);
         });
 
         clip.isPlaying().addValueObserver((isPlaying) => {
@@ -81,13 +79,9 @@ class LpSessionLayout {
             ` C-[${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`
           );
           if (isPlaying) {
-            ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-              mode: "pulse",
-            });
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).pulse();
           } else {
-            ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-              mode: "solid",
-            });
+            ext.grid.getCellBySessionCoords(trackNumber, sceneNumber).solid();
           }
         });
 
@@ -98,6 +92,30 @@ class LpSessionLayout {
           );
         });
       }
+    }
+
+    // For each scene: Subscribe / mark interested information
+    for (let sceneNumber = 0; sceneNumber < this.numScenes; sceneNumber++) {
+      const scene = ext.sceneBank.getItemAt(sceneNumber);
+
+      // Scene Selection
+      scene.addIsSelectedInEditorObserver((isSelected) => {
+        const button = ext.controls.getButton("scene" + sceneNumber);
+        if (isSelected) {
+          button.pulse().on();
+        } else {
+          button.solid().off();
+        }
+        button.draw();
+      });
+
+      // Scene Color
+      scene.color().addValueObserver((r, g, b) => {
+        const button = ext.controls.getButton("scene" + sceneNumber);
+        const colorNote = LpColors.bitwigRgbToNote(r, g, b);
+        println(` S-[${sceneNumber}]: Color: ${colorNote}`);
+        button.color(colorNote).draw();
+      });
     }
   }
 

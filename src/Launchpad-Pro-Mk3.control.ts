@@ -26,10 +26,12 @@ const ext: {
   midiOut: API.MidiOut;
   transport: API.Transport;
   tracks: API.TrackBank;
+  sceneBank: API.SceneBank;
   // Launchpad Controller
   layers: LpLayers;
   controls: LpControls;
   grid: LpNoteGrid;
+  // Launchpad Layouts
   transportLayout: LpTransportLayout;
   sessionLayout: LpSessionLayout;
 } = {
@@ -61,7 +63,7 @@ host.addDeviceNameBasedDiscoveryPair(
 // Idea: Use MIDI device ID to detect ?
 
 //////////////////////////////////////////
-// LIFECYCLE FUNCTIONS                  //
+// CONTROLLER LIFECYCLE FUNCTIONS       //
 //////////////////////////////////////////
 
 function init() {
@@ -84,6 +86,9 @@ function init() {
   // INITIALIZE NOTE GRID
   ext.grid.draw();
 
+  // INITIALIZE CONTROL BUTTONS
+  ext.controls.draw();
+
   // INITIALIZE BITWIG TRANSPORT
   ext.transportLayout.init();
 
@@ -105,7 +110,7 @@ function exit() {
 }
 
 //////////////////////////////////////////
-// FUNCTIONS                            //
+// MIDI INPUT CALLBACK                  //
 //////////////////////////////////////////
 
 function onDawMidi(status: number, data1: number, data2: number) {
@@ -136,6 +141,15 @@ function onDawMidi(status: number, data1: number, data2: number) {
           }
           break;
 
+        // TEMPO
+        case ext.controls.buttons.tempo.note:
+          ext.transport.tapTempo();
+          ext.controls.buttons.tempo.color(49).draw();
+          host.scheduleTask(() => {
+            ext.controls.buttons.tempo.color(51).draw();
+          }, 200);
+          break;
+
         // TRACK SELECTION
         case ext.controls.buttons.track0.note:
         case ext.controls.buttons.track1.note:
@@ -146,7 +160,7 @@ function onDawMidi(status: number, data1: number, data2: number) {
         case ext.controls.buttons.track6.note:
         case ext.controls.buttons.track7.note:
           const trackSelected = data1 - 101;
-          println(` T-[${trackSelected}]: Select and arm`);
+          println(` T-[${trackSelected}]: Select and arm record`);
           for (let trackNumber = 0; trackNumber < 8; trackNumber++) {
             const track = ext.tracks.getItemAt(trackNumber);
             if (trackNumber === trackSelected) {
@@ -156,6 +170,37 @@ function onDawMidi(status: number, data1: number, data2: number) {
               track.arm().set(false);
             }
           }
+          break;
+
+        // TRACK MUTE
+        case ext.controls.buttons.track0Alt.note:
+        case ext.controls.buttons.track1Alt.note:
+        case ext.controls.buttons.track2Alt.note:
+        case ext.controls.buttons.track3Alt.note:
+        case ext.controls.buttons.track4Alt.note:
+        case ext.controls.buttons.track5Alt.note:
+        case ext.controls.buttons.track6Alt.note:
+        case ext.controls.buttons.track7Alt.note:
+          const trackSelectedAlt = data1 - 1;
+          println(` T-[${trackSelectedAlt}]: Mute`);
+          const track = ext.tracks.getItemAt(trackSelectedAlt);
+          track.mute().toggle();
+          break;
+
+        // SCNENE SELECTION
+        case ext.controls.buttons.scene0.note:
+        case ext.controls.buttons.scene1.note:
+        case ext.controls.buttons.scene2.note:
+        case ext.controls.buttons.scene3.note:
+        case ext.controls.buttons.scene4.note:
+        case ext.controls.buttons.scene5.note:
+        case ext.controls.buttons.scene6.note:
+        case ext.controls.buttons.scene7.note:
+          const sceneSelected = 8 - parseInt(data1.toString()[0]);
+          println(` S-[${sceneSelected}]: Trigger`);
+          const sceneBank = ext.tracks.sceneBank().getItemAt(sceneSelected);
+          sceneBank.selectInEditor();
+          sceneBank.launch();
           break;
 
         // FALLBACK
@@ -168,6 +213,9 @@ function onDawMidi(status: number, data1: number, data2: number) {
     if (status === 144) {
       const pos = LpNoteGrid.noteToSessionCoord(data1);
       ext.sessionLayout.launchClip(pos.x, pos.y);
+
+      const pos2 = LpNoteGrid.noteToPosition(data1);
+      ext.grid.cells[pos2.x][pos2.y].highlight();
     }
   }
 }

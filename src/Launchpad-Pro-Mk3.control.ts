@@ -75,11 +75,32 @@ function init() {
   // INITIALIZE NOTE GRID
   ext.grid = createGrid();
   // colorGrid(ext.grid, 0);
-  drawGrid(ext.midiOut, ext.grid);
+  // colorGrid(ext.grid, 64);
+  drawGrid(ext.grid);
 
-  // INITIALIZE BITWIG
+  // INITIALIZE BITWIG TRANSPORT
   ext.transport = host.createTransport();
 
+  ext.transport.isPlaying().addValueObserver((isPlaying) => {
+    println(` >>>: isPlaying: ${isPlaying}`);
+    if (isPlaying) {
+      controlButtons.play.color = controlButtons.play.defaultColor;
+    } else {
+      controlButtons.play.color = 0;
+    }
+    drawControlButton(controlButtons.play);
+  });
+  ext.transport.isArrangerRecordEnabled().addValueObserver((isRecording) => {
+    println(` >>>: isRecording: ${isRecording}`);
+    if (isRecording) {
+      controlButtons.record.color = controlButtons.record.defaultColor;
+    } else {
+      controlButtons.record.color = 0;
+    }
+    drawControlButton(controlButtons.record);
+  });
+
+  // INITIALIZE BITWIG TRACKS & SCENES
   const numTracks = 8;
   const numScenes = 8;
   ext.tracks = host.createMainTrackBank(numTracks, 0, numScenes);
@@ -91,18 +112,33 @@ function init() {
   for (let trackNumber = 0; trackNumber < numTracks; trackNumber++) {
     const track = ext.tracks.getItemAt(trackNumber);
 
-    // track
-    //   .volume()
-    //   .value()
-    //   .addValueObserver(8, (volumeValue) => {
-    //     println(`Volume #${trackNumber} Value: ${volumeValue}`);
-    //   });
-
     // Mark information that we need as "interested"
     track.exists().markInterested();
     track.color().markInterested();
     track.arm().markInterested();
+
     println(`Track [${trackNumber}] Color  : ${track.color().get()}`);
+
+    // Track Colors
+    track.color().addValueObserver((r, g, b) => {
+      const colorNote = bitwigRgbToNote(r, g, b);
+      println(` T-[${trackNumber}]: Color: ${colorNote}`);
+      const button = controlButtons["track" + trackNumber];
+      button.color = colorNote;
+      drawControlButton(button);
+    });
+
+    // Track Arm Status
+    track.arm().addValueObserver((isArmed) => {
+      println(` T-[${trackNumber}]: isArmed: ${isArmed}`);
+      const button = controlButtons["track" + trackNumber];
+      if (isArmed) {
+        button.mode = "pulse";
+      } else {
+        button.mode = "solid";
+      }
+      drawControlButton(button);
+    });
 
     let slotBank = track.clipLauncherSlotBank();
     for (let sceneNumber = 0; sceneNumber < numScenes; sceneNumber++) {
@@ -110,7 +146,7 @@ function init() {
       clip.isPlaying().markInterested();
 
       clip.hasContent().addValueObserver((hasContent) => {
-        println(` [${trackNumber}, ${sceneNumber}]: Content: ${hasContent}`);
+        println(` C-[${trackNumber}, ${sceneNumber}]: Content: ${hasContent}`);
         if (hasContent) {
           ext.grid[trackNumber][7 - sceneNumber].color = 32;
         } else {
@@ -120,21 +156,28 @@ function init() {
 
       clip.color().addValueObserver((r, g, b) => {
         const colorNote = bitwigRgbToNote(r, g, b);
-        println(` [${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
+        println(` C-[${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
         ext.grid[trackNumber][7 - sceneNumber].color = colorNote;
       });
 
       clip.isPlaying().addValueObserver((isPlaying) => {
-        println(` [${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`);
+        println(` C-[${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`);
         if (isPlaying) {
           ext.grid[trackNumber][7 - sceneNumber].mode = "pulse";
         } else {
           ext.grid[trackNumber][7 - sceneNumber].mode = "solid";
         }
       });
+
+      clip.isSelected().addValueObserver((isSelected) => {
+        println(
+          ` C-[${trackNumber}, ${sceneNumber}]: isSelected: ${isSelected}`
+        );
+        if (isSelected) {
+          ext.grid[trackNumber][7 - sceneNumber].mode = "flash";
+        }
+      });
     }
-    // println(`Track #${trackNumber} Exists : ${track.exists().get()}`);
-    // println(`Track #${trackNumber} Arm    : ${track.arm().get()}`);
   }
 
   //   const sceneBank = tracks.sceneBank();
@@ -144,9 +187,8 @@ function init() {
 }
 
 function flush() {
-  // TODO: Flush any output to your controller here.
   host.println("flush()");
-  drawGrid(ext.midiOut, ext.grid);
+  drawGrid(ext.grid);
 }
 
 function exit() {
@@ -167,20 +209,51 @@ function onDawMidi(status: number, data1: number, data2: number) {
     if (status === 176) {
       println(`Control Button: ${data1}`);
 
-      if (data1 === controlButtons.play.note) {
-        const state = toggleControlButton(controlButtons.play);
-        if (state) {
-          ext.transport.play();
-        } else {
-          ext.transport.stop();
-        }
-      } else if (data1 === controlButtons.record.note) {
-        const state = toggleControlButton(controlButtons.record);
-        if (state) {
-          ext.transport.record();
-        } else {
-          ext.transport.stop();
-        }
+      switch (data1) {
+        // PLAY
+        case controlButtons.play.note:
+          if (ext.transport.isPlaying().getAsBoolean()) {
+            ext.transport.stop();
+          } else {
+            ext.transport.play();
+          }
+          break;
+
+        // RECORD
+        case controlButtons.record.note:
+          const state = toggleControlButton(controlButtons.record);
+          if (state) {
+            ext.transport.record();
+          } else {
+            ext.transport.stop();
+          }
+          break;
+
+        // TRACK SELECTION
+        case controlButtons.track0.note:
+        case controlButtons.track1.note:
+        case controlButtons.track2.note:
+        case controlButtons.track3.note:
+        case controlButtons.track4.note:
+        case controlButtons.track5.note:
+        case controlButtons.track6.note:
+        case controlButtons.track7.note:
+          const trackSelected = data1 - 101;
+          println(` T-[${trackSelected}]: Select and arm`);
+          for (let trackNumber = 0; trackNumber < 8; trackNumber++) {
+            const track = ext.tracks.getItemAt(trackNumber);
+            if (trackNumber === trackSelected) {
+              track.selectInEditor();
+              track.arm().set(true);
+            } else {
+              track.arm().set(false);
+            }
+          }
+          break;
+
+        // FALLBACK
+        default:
+          host.errorln(`Unsupported Control: ${data1}`);
       }
     }
 

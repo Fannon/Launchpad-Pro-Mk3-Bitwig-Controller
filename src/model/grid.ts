@@ -13,6 +13,7 @@ interface Cell extends Position {
 type Grid = Cell[][];
 
 function createGrid(): Grid {
+  println(`createGrid()`);
   const grid: Grid = [];
   for (let i = 0; i < 8; i++) {
     grid[i] = [];
@@ -29,21 +30,22 @@ function createGrid(): Grid {
   return grid;
 }
 
-function drawGrid(out: API.MidiOut, grid: Grid): void {
+function drawGrid(grid: Grid): void {
+  println(`drawGrid()`);
   for (const row of grid) {
     for (const cell of row) {
-      drawCell(out, cell);
+      drawCell(cell);
     }
   }
 }
 
-function drawCell(out: API.MidiOut, cell: Cell): void {
+function drawCell(cell: Cell): void {
   if (cell.mode === "flash") {
-    out.sendMidi(145, cell.note, cell.color);
+    ext.midiOut.sendMidi(145, cell.note, cell.color);
   } else if (cell.mode === "pulse") {
-    out.sendMidi(146, cell.note, cell.color);
+    ext.midiOut.sendMidi(146, cell.note, cell.color);
   } else {
-    out.sendMidi(144, cell.note, cell.color); // Solid
+    ext.midiOut.sendMidi(144, cell.note, cell.color); // Solid
   }
 }
 

@@ -24,7 +24,7 @@ enum LpLayout { // 0-19
 type LpPage = number; // 0-7
 
 /**
- * Manages the Launchpad Modes
+ * Manages the Launchpad Modes, Layouts and Pages
  */
 class LpLayers {
   public mode: LpMode = "standalone";

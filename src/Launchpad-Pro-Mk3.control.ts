@@ -6,13 +6,11 @@ loadAPI(14);
 host.setShouldFailOnDeprecatedUse(true);
 
 // Load all script files
-host.load("util/color.js");
 host.load("model/config.js");
 host.load("model/LpLayers.js");
 host.load("model/LpControls.js");
 host.load("model/LpNoteGrid.js");
-
-println(JSON.stringify(colorMap, null, 2));
+host.load("model/LpColors.js");
 
 //////////////////////////////////////////
 // CONFIG AND GLOBAL SCOPE              //
@@ -126,7 +124,7 @@ function init() {
 
     // Track Colors
     track.color().addValueObserver((r, g, b) => {
-      const colorNote = bitwigRgbToNote(r, g, b);
+      const colorNote = LpColors.bitwigRgbToNote(r, g, b);
       println(` T-[${trackNumber}]: Color: ${colorNote}`);
       const button = ext.controls.getButton("track" + trackNumber);
       button.color = colorNote;
@@ -164,7 +162,7 @@ function init() {
       });
 
       clip.color().addValueObserver((r, g, b) => {
-        const colorNote = bitwigRgbToNote(r, g, b);
+        const colorNote = LpColors.bitwigRgbToNote(r, g, b);
         println(` C-[${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
         ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
           color: colorNote,

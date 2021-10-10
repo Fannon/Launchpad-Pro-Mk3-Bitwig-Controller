@@ -19,6 +19,7 @@ class LpGridCell implements Position, CellData {
   public note: Note;
   public currentColor: Color;
   public mode: DisplayMode;
+  public enabled: boolean;
   private previousColor: Color;
 
   public constructor(
@@ -34,19 +35,30 @@ class LpGridCell implements Position, CellData {
     this.currentColor = color;
     this.previousColor = color;
     this.mode = mode;
+    this.enabled = !!color;
   }
 
   public isOn(): boolean {
-    return this.currentColor !== 0;
+    return this.enabled;
   }
 
-  public off(): LpGridCell {
-    this.previousColor = this.currentColor;
-    this.currentColor = 0;
+  public on(): LpGridCell {
+    this.enabled = true;
     return this;
   }
 
+  public off(): LpGridCell {
+    this.enabled = false;
+    return this;
+  }
+
+  /**
+   * Set color and enable (on()) the cell
+   */
   public color(color: Color): LpGridCell {
+    if (color) {
+      this.enabled = true;
+    }
     this.previousColor = this.currentColor;
     this.currentColor = color;
     return this;
@@ -79,12 +91,14 @@ class LpGridCell implements Position, CellData {
   }
 
   public draw(): LpGridCell {
-    if (this.mode === "flash") {
+    if (this.enabled === false) {
+      ext.midiOut.sendMidi(145, this.note, 0);
+    } else if (this.mode === "solid") {
+      ext.midiOut.sendMidi(144, this.note, this.currentColor);
+    } else if (this.mode === "flash") {
       ext.midiOut.sendMidi(145, this.note, this.currentColor);
     } else if (this.mode === "pulse") {
       ext.midiOut.sendMidi(146, this.note, this.currentColor);
-    } else {
-      ext.midiOut.sendMidi(144, this.note, this.currentColor); // Solid
     }
     return this;
   }

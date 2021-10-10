@@ -25,6 +25,7 @@ class LpSessionLayout {
       track.exists().markInterested();
       track.color().markInterested();
       track.arm().markInterested();
+      track.mute().markInterested();
 
       // Track Colors
       track.color().addValueObserver((r, g, b) => {
@@ -33,7 +34,12 @@ class LpSessionLayout {
         const button = ext.controls.getButton("track" + trackNumber);
         button.color(colorNote).draw();
         const altButton = ext.controls.getButton("track" + trackNumber + "Alt");
-        altButton.color(colorNote).draw();
+
+        if (track.mute().get()) {
+          altButton.color(1).pulse().draw();
+        } else {
+          altButton.color(colorNote).draw();
+        }
       });
 
       // Track Arm Status
@@ -41,11 +47,20 @@ class LpSessionLayout {
         println(` T-[${trackNumber}]: isArmed: ${isArmed}`);
         const button = ext.controls.getButton("track" + trackNumber);
         if (isArmed) {
-          button.mode = "pulse";
+          button.pulse().draw();
         } else {
-          button.mode = "solid";
+          button.solid().draw();
         }
-        button.draw();
+      });
+
+      track.mute().addValueObserver((isMuted) => {
+        println(` T-[${trackNumber}]: isMuted: ${isMuted}`);
+        const altButton = ext.controls.getButton("track" + trackNumber + "Alt");
+        if (isMuted) {
+          altButton.color(1).pulse().draw();
+        } else {
+          altButton.solid().draw();
+        }
       });
 
       let slotBank = track.clipLauncherSlotBank();

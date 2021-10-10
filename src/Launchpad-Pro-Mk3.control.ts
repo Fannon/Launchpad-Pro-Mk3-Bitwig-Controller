@@ -6,9 +6,12 @@ loadAPI(14);
 host.setShouldFailOnDeprecatedUse(true);
 
 // Load all script files
+host.load("util/color.js");
 host.load("model/config.js");
 host.load("model/grid.js");
 host.load("model/controls.js");
+
+println(JSON.stringify(colorMap, null, 2));
 
 //////////////////////////////////////////
 // CONFIG AND GLOBAL SCOPE              //
@@ -77,41 +80,62 @@ function init() {
   // INITIALIZE BITWIG
   ext.transport = host.createTransport();
 
-  //   ext.
-
   const numTracks = 8;
   const numScenes = 8;
   ext.tracks = host.createMainTrackBank(numTracks, 0, numScenes);
-  ext.tracks.scrollPosition().markInterested();
-  println("Scroll Position: " + ext.tracks.scrollPosition().get());
   ext.tracks.sceneBank().setIndication(true);
+
+  // ext.tracks.scrollPosition().markInterested();
+  // println("Scroll Position: " + ext.tracks.scrollPosition().get());
+
   for (let trackNumber = 0; trackNumber < numTracks; trackNumber++) {
     const track = ext.tracks.getItemAt(trackNumber);
 
-    track
-      .volume()
-      .value()
-      .addValueObserver(8, (volumeValue) => {
-        println(`Volume Value: ${volumeValue}`);
-      });
+    // track
+    //   .volume()
+    //   .value()
+    //   .addValueObserver(8, (volumeValue) => {
+    //     println(`Volume #${trackNumber} Value: ${volumeValue}`);
+    //   });
 
     // Mark information that we need as "interested"
     track.exists().markInterested();
     track.color().markInterested();
     track.arm().markInterested();
-    let cb = track.clipLauncherSlotBank();
-    for (let sceneNumber = 0; sceneNumber < numScenes; sceneNumber++) {
-      cb.getItemAt(sceneNumber).hasContent().markInterested();
-    }
-    println(
-      `Track #${trackNumber} Color  : ${track.color().get().getRed255()}`
-    );
-    println(`Track #${trackNumber} Exists : ${track.exists().get()}`);
-    println(`Track #${trackNumber} Arm    : ${track.arm().get()}`);
-  }
+    println(`Track [${trackNumber}] Color  : ${track.color().get()}`);
 
-  launchClip(0, 0);
-  launchClip(1, 1);
+    let slotBank = track.clipLauncherSlotBank();
+    for (let sceneNumber = 0; sceneNumber < numScenes; sceneNumber++) {
+      const clip = slotBank.getItemAt(sceneNumber);
+      clip.isPlaying().markInterested();
+
+      clip.hasContent().addValueObserver((hasContent) => {
+        println(` [${trackNumber}, ${sceneNumber}]: Content: ${hasContent}`);
+        if (hasContent) {
+          ext.grid[trackNumber][7 - sceneNumber].color = 32;
+        } else {
+          ext.grid[trackNumber][7 - sceneNumber].color = 0;
+        }
+      });
+
+      clip.color().addValueObserver((r, g, b) => {
+        const colorNote = bitwigRgbToNote(r, g, b);
+        println(` [${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
+        ext.grid[trackNumber][7 - sceneNumber].color = colorNote;
+      });
+
+      clip.isPlaying().addValueObserver((isPlaying) => {
+        println(` [${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`);
+        if (isPlaying) {
+          ext.grid[trackNumber][7 - sceneNumber].mode = "pulse";
+        } else {
+          ext.grid[trackNumber][7 - sceneNumber].mode = "solid";
+        }
+      });
+    }
+    // println(`Track #${trackNumber} Exists : ${track.exists().get()}`);
+    // println(`Track #${trackNumber} Arm    : ${track.arm().get()}`);
+  }
 
   //   const sceneBank = tracks.sceneBank();
   //   sceneBank.launch(0);
@@ -122,6 +146,7 @@ function init() {
 function flush() {
   // TODO: Flush any output to your controller here.
   host.println("flush()");
+  drawGrid(ext.midiOut, ext.grid);
 }
 
 function exit() {
@@ -158,6 +183,12 @@ function onDawMidi(status: number, data1: number, data2: number) {
         }
       }
     }
+
+    // Handle grid note buttons
+    if (status === 144) {
+      const pos = noteToPosition(data1);
+      toggleClip(pos.x, 7 - pos.y);
+    }
   }
 }
 
@@ -174,6 +205,20 @@ function dawMode() {
 //////////////////////////////////////////
 // SESSION VIEW FUNCTIONS               //
 //////////////////////////////////////////
+
+function toggleClip(trackIndex: number, slotIndex: number) {
+  println(`Toggle Clip: Track #${trackIndex} -> Slot #${slotIndex}`);
+  let track = ext.tracks.getItemAt(trackIndex);
+  let clip = track.clipLauncherSlotBank().getItemAt(slotIndex);
+  // Check if clip has content. If it does, launch it. If it doesn't, stop the track.
+  if (clip.hasContent().get()) {
+    if (clip.isPlaying().get()) {
+      clip.select();
+    } else {
+      clip.launch();
+    }
+  }
+}
 
 function launchClip(trackIndex: number, slotIndex: number) {
   println(`Launch Clip: Track #${trackIndex} -> Slot #${slotIndex}`);

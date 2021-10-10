@@ -15,21 +15,15 @@ host.load("model/controls.js");
 //////////////////////////////////////////
 
 const sysexPrefix = "F0 00 20 29 02 0E";
+// @ts-expect-error
 const ext: {
   midiIn: API.MidiIn;
   midiOut: API.MidiOut;
   grid: Grid;
+  transport: API.Transport;
   tracks: API.TrackBank;
   shift: boolean;
 } = {
-  // @ts-expect-error
-  midiIn: undefined,
-  // @ts-expect-error
-  midiOut: undefined,
-  // @ts-expect-error
-  grid: undefined,
-  // @ts-expect-error
-  tracks: undefined,
   shift: false,
 };
 
@@ -68,16 +62,20 @@ function init() {
   ext.midiIn = host.getMidiInPort(0);
   ext.midiOut = host.getMidiOutPort(0);
 
-  // DEBUGGING / INSPECTION
+  // REGISTER IN & OUT CALLBACKS
   ext.midiIn.setMidiCallback(onDawMidi);
   ext.midiIn.setSysexCallback(onDawSysex);
 
+  // ENTER DAW MODE
   dawMode();
 
-  // Initialize Grid
+  // INITIALIZE NOTE GRID
   ext.grid = createGrid();
-  colorGrid(ext.grid, 0);
+  // colorGrid(ext.grid, 0);
   drawGrid(ext.midiOut, ext.grid);
+
+  // INITIALIZE BITWIG
+  ext.transport = host.createTransport();
 
   //   ext.
 
@@ -119,9 +117,6 @@ function init() {
   //   sceneBank.launch(0);
   //   sceneBank.setIndication(true);
   //   const scene = sceneBank.getScene(1);
-
-  //   const transport = host.createTransport();
-  //   transport.
 }
 
 function flush() {
@@ -148,13 +143,19 @@ function onDawMidi(status: number, data1: number, data2: number) {
       println(`Control Button: ${data1}`);
 
       if (data1 === controlButtons.play.note) {
-        println(`Play Button pressed!`);
-        if (controlButtons.play.color === 0) {
-          controlButtons.play.color = 32;
+        const state = toggleControlButton(controlButtons.play);
+        if (state) {
+          ext.transport.play();
         } else {
-          controlButtons.play.color = 0;
+          ext.transport.stop();
         }
-        drawControlButton(ext.midiOut, controlButtons.play);
+      } else if (data1 === controlButtons.record.note) {
+        const state = toggleControlButton(controlButtons.record);
+        if (state) {
+          ext.transport.record();
+        } else {
+          ext.transport.stop();
+        }
       }
     }
   }

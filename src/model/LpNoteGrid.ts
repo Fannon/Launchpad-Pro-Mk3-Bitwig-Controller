@@ -145,4 +145,14 @@ class LpNoteGrid {
       y: Math.floor(note / 10) - 1,
     };
   }
+
+  /**
+   * Convert launchpad note to grid position (x, y)
+   */
+  public static noteToSessionCoord(note: Note): Position {
+    return {
+      x: (note % 10) - 1,
+      y: 7 - (Math.floor(note / 10) - 1),
+    };
+  }
 }

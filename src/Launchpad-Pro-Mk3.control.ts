@@ -6,11 +6,13 @@ loadAPI(14);
 host.setShouldFailOnDeprecatedUse(true);
 
 // Load all script files
-host.load("model/config.js");
+host.load("config.js");
 host.load("model/LpLayers.js");
 host.load("model/LpControls.js");
 host.load("model/LpNoteGrid.js");
 host.load("model/LpColors.js");
+host.load("layout/LpTransportLayout.js");
+host.load("layout/LpSessionLayout.js");
 
 //////////////////////////////////////////
 // CONFIG AND GLOBAL SCOPE              //
@@ -28,10 +30,14 @@ const ext: {
   layers: LpLayers;
   controls: LpControls;
   grid: LpNoteGrid;
+  transportLayout: LpTransportLayout;
+  sessionLayout: LpSessionLayout;
 } = {
   layers: new LpLayers(),
   controls: new LpControls(),
   grid: new LpNoteGrid(),
+  transportLayout: new LpTransportLayout(),
+  sessionLayout: new LpSessionLayout(),
 };
 
 //////////////////////////////////////////
@@ -61,10 +67,9 @@ host.addDeviceNameBasedDiscoveryPair(
 function init() {
   println("");
   println("");
-  println("--- [INIT] --------------------------------------------");
+  println("--- [INIT START] --------------------------------------");
 
-  host.println("TsPlayground initialized.");
-  host.showPopupNotification("TS Playground initialized!");
+  host.println("Launchpad Mk3 Pro controller initialized.");
 
   ext.midiIn = host.getMidiInPort(0);
   ext.midiOut = host.getMidiOutPort(0);
@@ -77,119 +82,15 @@ function init() {
   ext.layers.setDawMode();
 
   // INITIALIZE NOTE GRID
-  // colorGrid(ext.grid, 0);
-  // colorGrid(ext.grid, 64);
   ext.grid.draw();
 
   // INITIALIZE BITWIG TRANSPORT
-  ext.transport = host.createTransport();
+  ext.transportLayout.init();
 
-  ext.transport.isPlaying().addValueObserver((isPlaying) => {
-    println(` >>>: isPlaying: ${isPlaying}`);
-    if (isPlaying) {
-      ext.controls.buttons.play.on();
-    } else {
-      ext.controls.buttons.play.off();
-    }
-    ext.controls.buttons.play.draw();
-  });
-  ext.transport.isArrangerRecordEnabled().addValueObserver((isRecording) => {
-    println(` >>>: isRecording: ${isRecording}`);
-    if (isRecording) {
-      ext.controls.buttons.record.on();
-    } else {
-      ext.controls.buttons.record.off();
-    }
-    ext.controls.buttons.record.draw();
-  });
+  // INITIALIZE SESSSION LAYOUT
+  ext.sessionLayout.init();
 
-  // INITIALIZE BITWIG TRACKS & SCENES
-  const numTracks = 8;
-  const numScenes = 8;
-  ext.tracks = host.createMainTrackBank(numTracks, 0, numScenes);
-  ext.tracks.sceneBank().setIndication(true);
-
-  // ext.tracks.scrollPosition().markInterested();
-  // println("Scroll Position: " + ext.tracks.scrollPosition().get());
-
-  for (let trackNumber = 0; trackNumber < numTracks; trackNumber++) {
-    const track = ext.tracks.getItemAt(trackNumber);
-
-    // Mark information that we need as "interested"
-    track.exists().markInterested();
-    track.color().markInterested();
-    track.arm().markInterested();
-
-    println(`Track [${trackNumber}] Color  : ${track.color().get()}`);
-
-    // Track Colors
-    track.color().addValueObserver((r, g, b) => {
-      const colorNote = LpColors.bitwigRgbToNote(r, g, b);
-      println(` T-[${trackNumber}]: Color: ${colorNote}`);
-      const button = ext.controls.getButton("track" + trackNumber);
-      button.color = colorNote;
-      button.draw();
-    });
-
-    // Track Arm Status
-    track.arm().addValueObserver((isArmed) => {
-      println(` T-[${trackNumber}]: isArmed: ${isArmed}`);
-      const button = ext.controls.getButton("track" + trackNumber);
-      if (isArmed) {
-        button.mode = "pulse";
-      } else {
-        button.mode = "solid";
-      }
-      button.draw();
-    });
-
-    let slotBank = track.clipLauncherSlotBank();
-    for (let sceneNumber = 0; sceneNumber < numScenes; sceneNumber++) {
-      const clip = slotBank.getItemAt(sceneNumber);
-      clip.isPlaying().markInterested();
-
-      clip.hasContent().addValueObserver((hasContent) => {
-        println(` C-[${trackNumber}, ${sceneNumber}]: Content: ${hasContent}`);
-        if (hasContent) {
-          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-            color: 32,
-          });
-        } else {
-          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-            color: 0,
-          });
-        }
-      });
-
-      clip.color().addValueObserver((r, g, b) => {
-        const colorNote = LpColors.bitwigRgbToNote(r, g, b);
-        println(` C-[${trackNumber}, ${sceneNumber}]: Color: ${colorNote}`);
-        ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-          color: colorNote,
-        });
-      });
-
-      clip.isPlaying().addValueObserver((isPlaying) => {
-        println(` C-[${trackNumber}, ${sceneNumber}]: isPlaying: ${isPlaying}`);
-        if (isPlaying) {
-          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-            mode: "pulse",
-          });
-        } else {
-          ext.grid.updateCellBySessionCoords(trackNumber, sceneNumber, {
-            mode: "solid",
-          });
-        }
-      });
-
-      // TODO: Not sure how to make this useful
-      clip.isSelected().addValueObserver((isSelected) => {
-        println(
-          ` C-[${trackNumber}, ${sceneNumber}]: isSelected: ${isSelected}`
-        );
-      });
-    }
-  }
+  println("--- [INIT END] ----------------------------------------");
 }
 
 function flush() {
@@ -265,8 +166,8 @@ function onDawMidi(status: number, data1: number, data2: number) {
 
     // Handle grid note buttons
     if (status === 144) {
-      const pos = LpNoteGrid.noteToPosition(data1);
-      toggleClip(pos.x, 7 - pos.y);
+      const pos = LpNoteGrid.noteToSessionCoord(data1);
+      ext.sessionLayout.launchClip(pos.x, pos.y);
     }
   }
 }
@@ -281,41 +182,3 @@ function onDawSysex(data: string) {
     ext.layers.page = parseInt(`${data[2]}${data[3]}`, 16);
   }
 }
-
-//////////////////////////////////////////
-// SESSION VIEW FUNCTIONS               //
-//////////////////////////////////////////
-
-function toggleClip(trackIndex: number, slotIndex: number) {
-  println(`Toggle Clip: Track #${trackIndex} -> Slot #${slotIndex}`);
-  let track = ext.tracks.getItemAt(trackIndex);
-  let clip = track.clipLauncherSlotBank().getItemAt(slotIndex);
-  // Check if clip has content. If it does, launch it. If it doesn't, stop the track.
-  if (clip.hasContent().get()) {
-    if (clip.isPlaying().get()) {
-      clip.select();
-    } else {
-      clip.launch();
-    }
-  }
-}
-
-function launchClip(trackIndex: number, slotIndex: number) {
-  println(`Launch Clip: Track #${trackIndex} -> Slot #${slotIndex}`);
-  let track = ext.tracks.getItemAt(trackIndex);
-  let clip = track.clipLauncherSlotBank().getItemAt(slotIndex);
-  // Check if clip has content. If it does, launch it. If it doesn't, stop the track.
-  if (clip.hasContent().get()) {
-    clip.launch();
-  } else {
-    if (track.arm().get()) {
-      clip.launch();
-    } else {
-      track.stop();
-    }
-  }
-}
-
-//////////////////////////////////////////
-//                                      //
-//////////////////////////////////////////

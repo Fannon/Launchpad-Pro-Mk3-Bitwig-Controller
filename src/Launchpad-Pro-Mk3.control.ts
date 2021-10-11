@@ -164,9 +164,12 @@ function onDawMidi(status: number, data1: number, data2: number) {
           break;
 
         // CLEAR
-        // TODO: Stop all clips? Or reset Launchpad?
+        // TODO: Stop all clips.
         case ext.controls.buttons.clear.note:
-          host.restart();
+          for (let trackNumber = 0; trackNumber < 8; trackNumber++) {
+            const track = ext.tracks.getItemAt(trackNumber);
+            track.stop();
+          }
           break;
 
         // TRACK SELECTION

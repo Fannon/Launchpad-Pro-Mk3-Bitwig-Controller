@@ -95,7 +95,18 @@ function init() {
   // INITIALIZE SESSSION LAYOUT
   ext.sessionLayout.init();
 
-  host.getProject().subscribe();
+  let rememberedProjectName: string = "";
+  host
+    .createApplication()
+    .projectName()
+    .addValueObserver((projectName) => {
+      if (rememberedProjectName && rememberedProjectName !== projectName) {
+        println(`Project change detected. Restarting controller host.`);
+        host.restart();
+      }
+      rememberedProjectName = projectName;
+      println(`Project Name: ${projectName}`);
+    });
 
   println("--- [INIT END] ----------------------------------------");
 }

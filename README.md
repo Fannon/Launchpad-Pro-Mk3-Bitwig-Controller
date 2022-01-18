@@ -2,7 +2,13 @@
 
 ## Description
 
-> 🚧 This is currently work in progress and potentially subject to many changes.
+> Since this has been created, [wes koop](https://github.com/weskoop) has created a much better version of this controller script.
+>
+> I recommend to use his [Launchpad-Pro-Mk3-for-Bitwig](https://github.com/weskoop/Launchpad-Pro-Mk3-for-Bitwig) script instead of mine.
+
+> 🚧 This project was my first take at writing a Bitwig Controller.
+> It works, but after creating it I realized that I would need to rework it significantly to come up with a better architecture.
+> Since there is [Launchpad-Pro-Mk3-for-Bitwig](https://github.com/weskoop/Launchpad-Pro-Mk3-for-Bitwig) now, I consider contributing there instead of working on my own project.
 
 This is a Bitwig Controller for the Launchpad Pro MK3.
 
